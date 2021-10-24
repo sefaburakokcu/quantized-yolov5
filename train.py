@@ -367,7 +367,7 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
                 best_fitness = fi
             log_vals = list(mloss) + list(results) + lr
             callbacks.run('on_fit_epoch_end', log_vals, epoch, best_fitness, fi)
-
+            
             # Save model
             if (not nosave) or (final_epoch and not evolve):  # if save
                 ckpt = {'epoch': epoch,
@@ -377,13 +377,21 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
                         'updates': ema.updates,
                         'optimizer': optimizer.state_dict(),
                         'wandb_id': loggers.wandb.wandb_run.id if loggers.wandb else None}
-
-                # Save last, best and delete
-                torch.save(ckpt, last)
+                try:
+                    # Save last, best and delete
+                    torch.save(ckpt, last)
+                except:
+                    torch.save(deepcopy(de_parallel(model)).half().state_dict(), last)
                 if best_fitness == fi:
-                    torch.save(ckpt, best)
+                    try:
+                        torch.save(ckpt, best)
+                    except:
+                        torch.save(deepcopy(de_parallel(model)).half().state_dict(), best)
                 if (epoch > 0) and (opt.save_period > 0) and (epoch % opt.save_period == 0):
-                    torch.save(ckpt, w / f'epoch{epoch}.pt')
+                    try:
+                        torch.save(ckpt, w / f'epoch{epoch}.pt')
+                    except:
+                        torch.save(deepcopy(de_parallel(model)).half().state_dict(), w / f'epoch{epoch}.pt')
                 del ckpt
                 callbacks.run('on_model_save', last, epoch, final_epoch, best_fitness, fi)
 
@@ -435,13 +443,13 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
 
 def parse_opt(known=False):
     parser = argparse.ArgumentParser()
-    parser.add_argument('--weights', type=str, default=ROOT / 'yolov5s.pt', help='initial weights path')
-    parser.add_argument('--cfg', type=str, default='', help='model.yaml path')
-    parser.add_argument('--data', type=str, default=ROOT / 'data/coco128.yaml', help='dataset.yaml path')
-    parser.add_argument('--hyp', type=str, default=ROOT / 'data/hyps/hyp.scratch.yaml', help='hyperparameters path')
+    parser.add_argument('--weights', type=str, default=ROOT / '', help='initial weights path')
+    parser.add_argument('--cfg', type=str, default='models/hub/yolov1-tiny-quant.yaml', help='model.yaml path')
+    parser.add_argument('--data', type=str, default=ROOT / 'data/widerface.yaml', help='dataset.yaml path')
+    parser.add_argument('--hyp', type=str, default=ROOT / 'data/hyps/hyp.widerface.yaml', help='hyperparameters path')
     parser.add_argument('--epochs', type=int, default=300)
     parser.add_argument('--batch-size', type=int, default=16, help='total batch size for all GPUs')
-    parser.add_argument('--imgsz', '--img', '--img-size', type=int, default=640, help='train, val image size (pixels)')
+    parser.add_argument('--imgsz', '--img', '--img-size', type=int, default=416, help='train, val image size (pixels)')
     parser.add_argument('--rect', action='store_true', help='rectangular training')
     parser.add_argument('--resume', nargs='?', const=True, default=False, help='resume most recent training')
     parser.add_argument('--nosave', action='store_true', help='only save final checkpoint')
@@ -619,4 +627,7 @@ def run(**kwargs):
 
 if __name__ == "__main__":
     opt = parse_opt()
+    
+    opt.noval = True
+    
     main(opt)

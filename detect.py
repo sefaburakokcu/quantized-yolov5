@@ -304,4 +304,5 @@ def main(opt):
 
 if __name__ == "__main__":
     opt = parse_opt()
+    opt.weights = "./runs/train/exp14/weights/best.pt"
     main(opt)
