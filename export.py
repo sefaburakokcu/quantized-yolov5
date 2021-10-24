@@ -46,7 +46,22 @@ from utils.general import colorstr, check_dataset, check_img_size, check_require
     set_logging, url2file
 from utils.torch_utils import select_device
 
+import brevitas.onnx as bo
 
+
+def export_finn_onnx(model, im, file, prefix=colorstr('FinnOnnx:')):
+    try:
+        print(f'\n{prefix} starting export with torch {torch.__version__}...')
+        f = file.with_suffix('.finn.onnx')
+        input_shape = list(im.numpy().shape)
+        bo.export_finn_onnx(module=model,
+                            input_shape=input_shape,
+                            export_path=f,
+                            input_t=None)
+    except Exception as e:
+        print(f'{prefix} export failure: {e}')
+    
+    
 def export_torchscript(model, im, file, optimize, prefix=colorstr('TorchScript:')):
     # YOLOv5 TorchScript model export
     try:
@@ -263,7 +278,8 @@ def run(data=ROOT / 'data/coco128.yaml',  # 'dataset.yaml path'
         topk_per_class=100,  # TF.js NMS: topk per class to keep
         topk_all=100,  # TF.js NMS: topk for all classes to keep
         iou_thres=0.45,  # TF.js NMS: IoU threshold
-        conf_thres=0.25  # TF.js NMS: confidence threshold
+        conf_thres=0.25,  # TF.js NMS: confidence threshold
+        nodetect=False  # Remove last layer
         ):
     t = time.time()
     include = [x.lower() for x in include]
@@ -274,7 +290,7 @@ def run(data=ROOT / 'data/coco128.yaml',  # 'dataset.yaml path'
     # Load PyTorch model
     device = select_device(device)
     assert not (device.type == 'cpu' and half), '--half only compatible with GPU export, i.e. use --device 0'
-    model = attempt_load(weights, map_location=device, inplace=True, fuse=True)  # load FP32 model
+    model = attempt_load(weights, map_location=device, inplace=False, fuse=False)  # load FP32 model
     nc, names = model.nc, model.names  # number of classes, class names
 
     # Input
@@ -298,7 +314,11 @@ def run(data=ROOT / 'data/coco128.yaml',  # 'dataset.yaml path'
     for _ in range(2):
         y = model(im)  # dry runs
     print(f"\n{colorstr('PyTorch:')} starting from {file} ({file_size(file):.1f} MB)")
-
+    
+    # Remove detect layer
+    if nodetect:
+        model.model = nn.Sequential(*[model.model[i] for i in range(15)])
+    
     # Exports
     if 'torchscript' in include:
         export_torchscript(model, im, file, optimize)
@@ -306,6 +326,8 @@ def run(data=ROOT / 'data/coco128.yaml',  # 'dataset.yaml path'
         export_onnx(model, im, file, opset, train, dynamic, simplify)
     if 'coreml' in include:
         export_coreml(model, im, file)
+    if 'finn_onnx' in include:
+        export_finn_onnx(model, im, file)
 
     # TensorFlow Exports
     if any(tf_exports):
@@ -341,14 +363,15 @@ def parse_opt():
     parser.add_argument('--int8', action='store_true', help='CoreML/TF INT8 quantization')
     parser.add_argument('--dynamic', action='store_true', help='ONNX/TF: dynamic axes')
     parser.add_argument('--simplify', action='store_true', help='ONNX: simplify model')
-    parser.add_argument('--opset', type=int, default=13, help='ONNX: opset version')
+    parser.add_argument('--opset', type=int, default=11, help='ONNX: opset version')
     parser.add_argument('--topk-per-class', type=int, default=100, help='TF.js NMS: topk per class to keep')
     parser.add_argument('--topk-all', type=int, default=100, help='TF.js NMS: topk for all classes to keep')
     parser.add_argument('--iou-thres', type=float, default=0.45, help='TF.js NMS: IoU threshold')
     parser.add_argument('--conf-thres', type=float, default=0.25, help='TF.js NMS: confidence threshold')
     parser.add_argument('--include', nargs='+',
-                        default=['torchscript', 'onnx'],
+                        default=['finn_onnx'],
                         help='available formats are (torchscript, onnx, coreml, saved_model, pb, tflite, tfjs)')
+    parser.add_argument('--nodetect', action='store_true', help='remove last(detect) layer')
     opt = parser.parse_args()
     print_args(FILE.stem, opt)
     return opt
@@ -361,4 +384,9 @@ def main(opt):
 
 if __name__ == "__main__":
     opt = parse_opt()
+    opt.data = "./data/widerface.yaml"
+    opt.weights = "./runs/train/exp14/weights/best.pt"
+    opt.imgsz = [416, 416]
+    opt.nodetect = True
+    
     main(opt)
