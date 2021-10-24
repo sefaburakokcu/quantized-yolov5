@@ -91,11 +91,18 @@ def attempt_load(weights, map_location=None, inplace=True, fuse=True):
     # Loads an ensemble of models weights=[a,b,c] or a single model weights=[a] or weights=a
     model = Ensemble()
     for w in weights if isinstance(weights, list) else [weights]:
-        ckpt = torch.load(attempt_download(w), map_location=map_location)  # load
+        try:
+            ckpt = torch.load(attempt_download(w), map_location=map_location)  # load
+            ema = ckpt['ema' if ckpt.get('ema') else 'model'].float()
+        except:
+            ckpt = torch.load(attempt_download(w), map_location='cpu')  # load
+            ema = Model('models/hub/yolov1-tiny-quant.yaml')
+            ema.load_state_dict(ckpt)
+            ema.to(map_location)  # load
         if fuse:
-            model.append(ckpt['ema' if ckpt.get('ema') else 'model'].float().fuse().eval())  # FP32 model
+            model.append(ema.fuse().eval())  # FP32 model
         else:
-            model.append(ckpt['ema' if ckpt.get('ema') else 'model'].float().eval())  # without layer fuse
+            model.append(ema.eval())  # without layer fuse
 
 
     # Compatibility updates
