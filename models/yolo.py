@@ -47,7 +47,6 @@ class Detect(nn.Module):
         self.anchor_grid = [torch.zeros(1)] * self.nl  # init anchor grid
         self.register_buffer('anchors', torch.tensor(anchors).float().view(self.nl, -1, 2))  # shape(nl,na,2)
         self.in_conv = in_conv
-        # if self.in_conv:
         self.m = nn.ModuleList(nn.Conv2d(x, self.no * self.na, 1) for x in ch)  # output conv
         self.inplace = inplace  # use in-place ops (e.g. slice assignment)
             
@@ -257,8 +256,8 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
     LOGGER.info('\n%3s%18s%3s%10s  %-40s%-30s' % ('', 'from', 'n', 'params', 'module', 'arguments'))
     anchors, nc, gd, gw = d['anchors'], d['nc'], d['depth_multiple'], d['width_multiple']
     if 'bit_width' in d.keys():
+        # in_weight_bit_width, in_act_bit_width, weight_bit_width, act_bit_width, out_weight_bit_width = d['bit_width'][0]
         in_weight_bit_width, weight_bit_width, act_bit_width, out_weight_bit_width = d['bit_width'][0]
-        
     na = (len(anchors[0]) // 2) if isinstance(anchors, list) else anchors  # number of anchors
     no = na * (nc + 5)  # number of outputs = anchors * (classes + 5)
 
