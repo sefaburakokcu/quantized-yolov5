@@ -25,6 +25,7 @@ import os
 import subprocess
 import sys
 import time
+import numpy as np
 from pathlib import Path
 
 import torch
@@ -49,6 +50,12 @@ from utils.torch_utils import select_device
 import brevitas.onnx as bo
 
 
+def save_scale_params(model, file):
+    f = file.with_suffix('.npy')
+    scale = model.model[-1].conv.quant_weight()[1]
+    np.save(f, scale)
+    
+    
 def export_finn_onnx(model, im, file, prefix=colorstr('FinnOnnx:')):
     try:
         print(f'\n{prefix} starting export with torch {torch.__version__}...')
@@ -58,6 +65,7 @@ def export_finn_onnx(model, im, file, prefix=colorstr('FinnOnnx:')):
                             input_shape=input_shape,
                             export_path=f,
                             input_t=None)
+        save_scale_params(model, file)
     except Exception as e:
         print(f'{prefix} export failure: {e}')
     
