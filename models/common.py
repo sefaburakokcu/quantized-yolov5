@@ -55,6 +55,24 @@ class Conv(nn.Module):
         return self.act(self.conv(x))
 
 
+class SimpleConv(nn.Module):
+    # Standard convolution
+    def __init__(self, c1, c2, k=1, s=1, p=None, g=1):  # ch_in, ch_out, kernel, stride, padding, groups
+        super().__init__()
+
+        self.conv = nn.Conv2d(
+            in_channels=c1,
+            out_channels=c2,
+            kernel_size=k,
+            stride=s,
+            padding=autopad(k, p),
+            groups=g,
+            bias=False)
+
+    def forward(self, x):
+        x = self.conv(x)
+        return x
+        
 
 class QuantSimpleConv(nn.Module):
     # Standard convolution
