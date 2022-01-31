@@ -26,7 +26,7 @@ from models.experimental import attempt_load
 from utils.datasets import LoadImages, LoadStreams
 from utils.general import apply_classifier, check_img_size, check_imshow, check_requirements, check_suffix, colorstr, \
     increment_path, non_max_suppression, print_args, save_one_box, scale_coords, set_logging, \
-    strip_optimizer, xyxy2xywh
+    strip_optimizer, xyxy2xywh, xyxy2xywhtb
 from utils.plots import Annotator, colors
 from utils.torch_utils import load_classifier, select_device, time_sync
 
@@ -42,6 +42,7 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
         view_img=False,  # show results
         save_txt=False,  # save results to *.txt
         save_conf=False,  # save confidences in --save-txt labels
+        widerface=False, # use widerface for evaluation
         save_crop=False,  # save cropped prediction boxes
         nosave=False,  # do not save images/videos
         classes=None,  # filter by class: --class 0, or --class 0 2 3
@@ -150,7 +151,7 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
         if pt:
             visualize = increment_path(save_dir / Path(path).stem, mkdir=True) if visualize else False
             pred = model(img, augment=augment, visualize=visualize)[0]
-            np.save(f"first_model_output_{ind}.npy", pred.numpy())
+            #np.save(f"first_model_output_{ind}.npy", pred.numpy())
             ind += 1
         elif onnx:
             if dnn:
@@ -200,12 +201,26 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
 
             p = Path(p)  # to Path
             save_path = str(save_dir / p.name)  # img.jpg
-            txt_path = str(save_dir / 'labels' / p.stem) + ('' if dataset.mode == 'image' else f'_{frame}')  # img.txt
+            
+            if widerface:
+                (save_dir / 'labels' / p.parts[-2]).mkdir(parents=True, exist_ok=True)
+                txt_path = str(save_dir / 'labels' / p.parts[-2] / p.stem) + ('' if dataset.mode == 'image' else f'_{frame}')  # img.txt
+            else:
+                txt_path = str(save_dir / 'labels' / p.stem) + ('' if dataset.mode == 'image' else f'_{frame}')  # img.txt
+          
             s += '%gx%g ' % img.shape[2:]  # print string
             gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
+            if widerface:
+                gn = 1
+                with open(txt_path + '.txt', 'a') as f:
+                    f.write('%s/%s' % (p.parts[-2],p.name) + '\n')
+                    
             imc = im0.copy() if save_crop else im0  # for save_crop
             annotator = Annotator(im0, line_width=line_thickness, example=str(names))
             if len(det):
+                if widerface:
+                    with open(txt_path + '.txt', 'a') as f:
+                        f.write('%d' % len(det) + '\n')
                 # Rescale boxes from img_size to im0 size
                 det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
 
@@ -217,8 +232,12 @@ def run(weights=ROOT / 'yolov5s.pt',  # model.pt path(s)
                 # Write results
                 for *xyxy, conf, cls in reversed(det):
                     if save_txt:  # Write to file
-                        xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
-                        line = (cls, *xywh, conf) if save_conf else (cls, *xywh)  # label format
+                        if not widerface:
+                            xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
+                            line = (cls, *xywh, conf) if opt.save_conf else (cls, *xywh)  # label format
+                        else:
+                            xywh = (xyxy2xywhtb(torch.tensor(xyxy).view(1, 4))).view(-1).tolist()  # xywh
+                            line = (*xywh, conf) if opt.save_conf else (cls, *xywh)  # label format
                         with open(txt_path + '.txt', 'a') as f:
                             f.write(('%g ' * len(line)).rstrip() % line + '\n')
 
@@ -279,6 +298,7 @@ def parse_opt():
     parser.add_argument('--view-img', action='store_true', help='show results')
     parser.add_argument('--save-txt', action='store_true', help='save results to *.txt')
     parser.add_argument('--save-conf', action='store_true', help='save confidences in --save-txt labels')
+    parser.add_argument('--widerface', action='store_true', help='use widerface dataset for validation')
     parser.add_argument('--save-crop', action='store_true', help='save cropped prediction boxes')
     parser.add_argument('--nosave', action='store_true', help='do not save images/videos')
     parser.add_argument('--classes', nargs='+', type=int, help='filter by class: --classes 0, or --classes 0 2 3')
@@ -307,5 +327,10 @@ def main(opt):
 
 if __name__ == "__main__":
     opt = parse_opt()
-    opt.weights = "./runs/train/exp21/weights/best.pt"
+    opt.weights = "./runs/train/exp/weights/best.pt"
+    
+    opt.save_txt = True
+    opt.save_conf = True
+    opt.widerface = True
+    
     main(opt)
