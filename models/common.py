@@ -27,7 +27,7 @@ from utils.torch_utils import time_sync
 from brevitas.nn import QuantConv2d, QuantLinear, QuantReLU, QuantAvgPool2d, QuantSigmoid
 from brevitas.quant import IntBias
 
-from .quant_common import CommonIntActQuant, CommonUintActQuant
+from .quant_common import CommonIntActQuant, CommonUintActQuant, CommonWeightQuant, CommonActQuant
 from .quant_common import CommonIntWeightPerChannelQuant, CommonIntWeightPerTensorQuant
 
 LOGGER = logging.getLogger(__name__)
@@ -79,7 +79,11 @@ class QuantSimpleConv(nn.Module):
     def __init__(self, c1, c2, k=1, s=1, p=None, g=1, weight_bit_width=4, 
                  act_bit_width=2):  # ch_in, ch_out, kernel, stride, padding, groups
         super().__init__()
-
+        
+        if weight_bit_width == 1:
+            weight_quant = CommonWeightQuant
+        else:
+            weight_quant = CommonIntWeightPerChannelQuant
         self.conv = QuantConv2d(
             in_channels=c1,
             out_channels=c2,
@@ -88,7 +92,7 @@ class QuantSimpleConv(nn.Module):
             padding=autopad(k, p),
             groups=g,
             bias=False,
-            weight_quant=CommonIntWeightPerChannelQuant,
+            weight_quant=weight_quant,
             weight_bit_width=weight_bit_width)
 
     def forward(self, x):
@@ -103,6 +107,14 @@ class QuantConv(nn.Module):
         self.use_act = use_act
         self.use_bn = use_bn
 
+        if weight_bit_width == 1:
+            weight_quant = CommonWeightQuant
+        else:
+            weight_quant = CommonIntWeightPerChannelQuant
+        if act_bit_width == 1: 
+            act_quant = CommonActQuant
+        else:
+            act_quant = CommonUintActQuant
         self.conv = QuantConv2d(
             in_channels=c1,
             out_channels=c2,
@@ -111,11 +123,11 @@ class QuantConv(nn.Module):
             padding=autopad(k, p),
             groups=g,
             bias=False,
-            weight_quant=CommonIntWeightPerChannelQuant,
+            weight_quant=weight_quant,
             weight_bit_width=weight_bit_width)
         self.bn = nn.BatchNorm2d(c2)
         self.act = QuantReLU(
-            act_quant=CommonUintActQuant,
+            act_quant=act_quant,
             bit_width=act_bit_width,
             per_channel_broadcastable_shape=(1, c2, 1, 1),
             scaling_per_channel=False,
