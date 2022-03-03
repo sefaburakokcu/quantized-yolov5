@@ -3,6 +3,7 @@
 Experimental modules
 """
 
+import os
 import numpy as np
 import torch
 import torch.nn as nn
@@ -96,7 +97,11 @@ def attempt_load(weights, map_location=None, inplace=True, fuse=True):
             ema = ckpt['ema' if ckpt.get('ema') else 'model'].float()
         except:
             ckpt = torch.load(attempt_download(w), map_location='cpu')  # load
-            ema = Model('models/hub/yolov1-tiny-quant.yaml')
+            cfg = w.replace("weights/best.pt", "model.yaml")
+            if not os.path.exists(cfg):
+                cfg = 'models/hub/yolov1-tiny-quant.yaml'
+
+            ema = Model(cfg)
             ema.load_state_dict(ckpt)
             ema.to(map_location)  # load
         if fuse:
