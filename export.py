@@ -52,7 +52,7 @@ import brevitas.onnx as bo
 
 def save_scale_params(model, file):
     f = file.with_suffix('.npy')
-    scale = model.model[-1].conv.quant_weight()[1]
+    scale = model.model[-1].hard_quant.quant_output_scale()
     np.save(f, scale)
     
     
@@ -393,7 +393,8 @@ def main(opt):
 if __name__ == "__main__":
     opt = parse_opt()
     opt.data = "./data/widerface.yaml"
-    opt.weights = "./runs/train/exp21/weights/best.pt"
+    # opt.data = "./data/coco_2classes.yaml"
+    opt.weights = "./runs/train/exp131/weights/best.pt"
     opt.imgsz = [416, 416]
     opt.nodetect = True
     
