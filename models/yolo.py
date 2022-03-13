@@ -37,7 +37,7 @@ class Detect(nn.Module):
     stride = None  # strides computed during build
     onnx_dynamic = False  # ONNX export parameter
 
-    def __init__(self, nc=80, anchors=(), ch=(), in_conv=True, inplace=True):  # detection layer
+    def __init__(self, nc=80, anchors=(), ch=(), in_conv=True, use_hardtanh=False, inplace=True):  # detection layer
         super().__init__()
         self.nc = nc  # number of classes
         self.no = nc + 5  # number of outputs per anchor
@@ -47,6 +47,7 @@ class Detect(nn.Module):
         self.anchor_grid = [torch.zeros(1)] * self.nl  # init anchor grid
         self.register_buffer('anchors', torch.tensor(anchors).float().view(self.nl, -1, 2))  # shape(nl,na,2)
         self.in_conv = in_conv
+        self.use_hardtanh = use_hardtanh
         self.m = nn.ModuleList(nn.Conv2d(x, self.no * self.na, 1) for x in ch)  # output conv
         self.inplace = inplace  # use in-place ops (e.g. slice assignment)
             
@@ -61,14 +62,26 @@ class Detect(nn.Module):
             if not self.training:  # inference
                 if self.grid[i].shape[2:4] != x[i].shape[2:4] or self.onnx_dynamic:
                     self.grid[i], self.anchor_grid[i] = self._make_grid(nx, ny, i)
-
-                y = x[i].sigmoid()
+                y = x[i]
+                if self.use_hardtanh:
+                    y[..., 4:] = y[..., 4:] / 2 + 0.5
+                else:
+                    y = y.sigmoid()
                 if self.inplace:
-                    y[..., 0:2] = (y[..., 0:2] * 2. - 0.5 + self.grid[i]) * self.stride[i]  # xy
-                    y[..., 2:4] = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh
+                    if not self.use_hardtanh:
+                        y[..., 0:2] = (y[..., 0:2] * 2. - 0.5 + self.grid[i]) * self.stride[i]  # xy
+                        y[..., 2:4] = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh
+                    else:
+                        y[..., 0:2] = (y[..., 0:2] + 1.0 - 0.5 + self.grid[i]) * self.stride[i]  # xy
+                        y[..., 2:4] = (y[..., 2:4] + 1.0) ** 2 * self.anchor_grid[i]  # wh
+                    
                 else:  # for YOLOv5 on AWS Inferentia https://github.com/ultralytics/yolov5/pull/2953
-                    xy = (y[..., 0:2] * 2. - 0.5 + self.grid[i]) * self.stride[i]  # xy
-                    wh = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh
+                    if not self.use_hardtanh:
+                        xy = (y[..., 0:2] * 2. - 0.5 + self.grid[i]) * self.stride[i]  # xy
+                        wh = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh
+                    else:
+                        xy = (y[..., 0:2] + 1.0 - 0.5 + self.grid[i]) * self.stride[i]  # xy
+                        wh = (y[..., 2:4] + 1.0) ** 2 * self.anchor_grid[i]  # wh
                     y = torch.cat((xy, wh, y[..., 4:]), -1)
                 z.append(y.view(bs, -1, self.no))
 
@@ -287,7 +300,7 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
         elif m is Concat:
             c2 = sum([ch[x] for x in f])
         elif m is Detect:
-            if len(args) == 3:
+            if len(args) == 4:
                 args.insert(2, [ch[x] for x in f])
             else:
                 args.append([ch[x] for x in f])

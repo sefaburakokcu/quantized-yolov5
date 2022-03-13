@@ -24,8 +24,8 @@ from utils.plots import Annotator, colors
 from utils.torch_utils import time_sync
 
 # Quant layer imports
-from brevitas.nn import QuantConv2d, QuantLinear, QuantReLU, QuantAvgPool2d, QuantSigmoid
-from brevitas.quant import IntBias
+from brevitas.nn import QuantConv2d, QuantLinear, QuantReLU, QuantAvgPool2d, QuantSigmoid, QuantHardTanh
+from brevitas.quant import IntBias, Int8ActPerTensorFloatMinMaxInit
 
 from .quant_common import CommonIntActQuant, CommonUintActQuant, CommonWeightQuant, CommonActQuant
 from .quant_common import CommonIntWeightPerChannelQuant, CommonIntWeightPerTensorQuant
@@ -94,10 +94,16 @@ class QuantSimpleConv(nn.Module):
             bias=False,
             weight_quant=weight_quant,
             weight_bit_width=weight_bit_width)
+        self.hard_quant = QuantHardTanh(
+            max_val=1.0, min_val=-1.0,
+            act_quant=CommonActQuant,
+            bit_width=8)
 
     def forward(self, x):
         x = self.conv(x)
+        x = self.hard_quant(x/2)
         return x
+
 
 class QuantConv(nn.Module):
     # Standard convolution
@@ -146,6 +152,7 @@ class QuantConv(nn.Module):
         if self.use_act:
             x = self.act(x)
         return x
+
 
 class DWConv(Conv):
     # Depth-wise convolution class
