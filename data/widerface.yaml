@@ -3,7 +3,7 @@
 
 
 # Train/val/test sets as 1) dir: path/to/imgs, 2) file: path/to/imgs.txt, or 3) list: [path/to/imgs1, path/to/imgs2, ..]
-path: /home/sefa/datasets/widerface # dataset root dir
+path: /home/sefa/datasets/face_detection/widerface # dataset root dir
 train: WIDER_train/images  # train images (relative to 'path') 128 images
 val: WIDER_train/images  # val images (relative to 'path') 128 images
 test:  # test images (optional)
@@ -15,3 +15,15 @@ names: ['face']  # class names
 
 # Download script/URL (optional)
 download: 
+   # from utils.general import download, Path
+
+   # # Download labels
+   # dir = Path(yaml['path'])  # dataset root dir
+   # urls = ['http://shuoyang1213.me/WIDERFACE/support/bbx_annotation/wider_face_split.zip'] # labels
+   # download(urls, dir=dir.parent)
+
+   # # Download data
+   # urls = ['https://doc-10-84-docs.googleusercontent.com/docs/securesc/3bhvmqocapq7k0qtvgafqkqmhc17o00e/cig3f7ll7fe1i6meu5p4lveeorjr5dbd/1646301150000/05015110782597501518/08114252497397539668Z/15hGDLhsx8bLgLcIRD5DhYt5iBxnjNF1M?e=download&nonce=6ra8tc68g2q6k&user=08114252497397539668Z&hash=cls4t080oqnuf423gm9kg89hidlgm8ng',  # 1.4G
+   #         'https://doc-08-b4-docs.googleusercontent.com/docs/securesc/79us9g1rij7s5sbrie7punp1d2ktdk2p/r4odob7gvhvrtppfjq93i3c5octp9lee/1646301075000/05015110782597501518/04734018714258008328Z/1GUCogbp16PMGa39thoMMeWxp7Rp5oM8Q?e=download&nonce=rl2r7jvgdjq18&user=04734018714258008328Z&hash=vi1i4rq13bfcn5d97no4q890p4ggrrh1',  # 0.3G
+   #         'https://doc-08-18-docs.googleusercontent.com/docs/securesc/409qu10k6qrhbcbep16uq1cl6jq8f0en/ca4d7jn99f2pvu2kqnfre2plqc9edac9/1646300925000/05015110782597501518/10945223747683364136Z/1HIfDbVEWKmsYKJZm4lchTBDLW5N7dY5T?e=download&nonce=fjcm3hl90lgqe&user=10945223747683364136Z&hash=mb93nh56klsvkc570upu3sbno9qc27bm']  # 1.7G (optional)
+   # download(urls, dir=dir / 'images', threads=3)
