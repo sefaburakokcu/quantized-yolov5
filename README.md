@@ -44,6 +44,8 @@ Sigmoid activation is used in detect layer when training whereas HardTanh is use
 $ python export.py --data widerface.yaml --weights runs/train/exp1/weights/best.pt --nodetect
 ```
 
+## References
+
 * [YOLOV5](https://github.com/ultralytics/yolov5)
 * [BREVITAS](https://github.com/Xilinx/brevitas)
 
