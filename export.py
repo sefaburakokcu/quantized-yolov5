@@ -22,6 +22,7 @@ TensorFlow.js:
 
 import argparse
 import os
+import yaml
 import subprocess
 import sys
 import time
@@ -49,7 +50,17 @@ from utils.torch_utils import select_device
 
 import brevitas.onnx as bo
 
+def prepare_cfg_for_export(cfg):
+    with open(cfg, errors='ignore') as f:
+        model_definition = yaml.safe_load(f)  # load model dict
+    
+    if "use_hardtanh" in model_definition.keys():
+        model_definition["use_hardtanh"] = True
 
+    with open(cfg, 'w') as f:
+        yaml.safe_dump(model_definition, f, sort_keys=False)
+        
+        
 def save_scale_params(model, file):
     f = file.with_suffix('.npy')
     scale = model.model[-1].hard_quant.quant_output_scale()
@@ -298,6 +309,11 @@ def run(data=ROOT / 'data/coco128.yaml',  # 'dataset.yaml path'
     # Load PyTorch model
     device = select_device(device)
     assert not (device.type == 'cpu' and half), '--half only compatible with GPU export, i.e. use --device 0'
+    
+    if 'finn_onnx' in include:
+        cfg = weights.replace("weights/best.pt", "model.yaml")
+        prepare_cfg_for_export(cfg)
+    
     model = attempt_load(weights, map_location=device, inplace=True, fuse=True)  # load FP32 model
     nc, names = model.nc, model.names  # number of classes, class names
 
@@ -361,7 +377,7 @@ def parse_opt():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data', type=str, default=ROOT / 'data/coco128.yaml', help='dataset.yaml path')
     parser.add_argument('--weights', type=str, default=ROOT / 'yolov5s.pt', help='weights path')
-    parser.add_argument('--imgsz', '--img', '--img-size', nargs='+', type=int, default=[640, 640], help='image (h, w)')
+    parser.add_argument('--imgsz', '--img', '--img-size', nargs='+', type=int, default=[416, 416], help='image (h, w)')
     parser.add_argument('--batch-size', type=int, default=1, help='batch size')
     parser.add_argument('--device', default='cpu', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--half', action='store_true', help='FP16 half-precision export')
@@ -392,10 +408,11 @@ def main(opt):
 
 if __name__ == "__main__":
     opt = parse_opt()
-    opt.data = "./data/widerface.yaml"
-    # opt.data = "./data/coco_2classes.yaml"
-    opt.weights = "./runs/train/exp131/weights/best.pt"
-    opt.imgsz = [416, 416]
-    opt.nodetect = True
+    # opt.data = "./data/widerface.yaml"
+    # # opt.data = "./data/coco_2classes.yaml"
+    # opt.weights = "./runs/train/exp131/weights/best.pt"
+    # # opt.weights = "/home/sefa/Downloads/pytorch_files/8w3a/weights/best.pt"
+    # opt.imgsz = [416, 416]
+    # opt.nodetect = True
     
     main(opt)

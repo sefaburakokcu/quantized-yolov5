@@ -100,7 +100,7 @@ def attempt_load(weights, map_location=None, inplace=True, fuse=True):
             cfg = w.replace("weights/best.pt", "model.yaml")
             if not os.path.exists(cfg):
                 cfg = 'models/hub/yolov1-tiny-quant.yaml'
-
+            
             ema = Model(cfg)
             ema.load_state_dict(ckpt)
             ema.to(map_location)  # load
