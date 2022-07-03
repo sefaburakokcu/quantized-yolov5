@@ -6,7 +6,7 @@ This repo contains code for training Yolo(v1, v3, v5) architectures using differ
 ## Installation
 
 ```bash
-$ git clone https://github.com/sefaburakokcu/quantized-yolov5
+$ git clone git@github.com:sefaburakokcu/quantized-yolov5.git
 $ cd yolov5
 $ pip install -r requirements.txt
 ```
@@ -30,21 +30,26 @@ $ python detect.py --weights /path-to-weights-folder
 ## Training
 
 Run commands below to reproduce results
-on [Widerface](http://shuoyang1213.me/WIDERFACE/) dataset (dataset auto-downloads on
-first use).
+on [Widerface](http://shuoyang1213.me/WIDERFACE/) dataset.
 
 ```bash
 $ python train.py --data widerface.yaml --cfg models/hub/yolov1-tiny-quant.yaml --weights '' --batch-size 128
 ```
 
-## References
+## Export
+
+Sigmoid activation is used in detect layer when training whereas HardTanh is used when exporting the model for FINN.
+
+```bash
+$ python export.py --data widerface.yaml --weights runs/train/exp1/weights/best.pt --nodetect
+```
 
 * [YOLOV5](https://github.com/ultralytics/yolov5)
 * [BREVITAS](https://github.com/Xilinx/brevitas)
 
 ## Authors
 
-- [Sefa Burak OKCU](sefaburak.okcu@gmail.com)
-- [Bestami GÜNAY](bestamigunay1@gmail.com)
+- [Sefa Burak OKCU](https://www.linkedin.com/in/sefaburakokcu/)
+- [Bestami GÜNAY](https://www.linkedin.com/in/bestamigunay/)
 
 
