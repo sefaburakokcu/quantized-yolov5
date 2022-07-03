@@ -77,9 +77,10 @@ class SimpleConv(nn.Module):
 class QuantSimpleConv(nn.Module):
     # Standard convolution
     def __init__(self, c1, c2, k=1, s=1, p=None, g=1, weight_bit_width=4, 
-                 act_bit_width=2):  # ch_in, ch_out, kernel, stride, padding, groups
+                 act_bit_width=2, use_hardtanh=False):  # ch_in, ch_out, kernel, stride, padding, groups
         super().__init__()
         
+        self.use_hardtanh = use_hardtanh
         if weight_bit_width == 1:
             weight_quant = CommonWeightQuant
         else:
@@ -94,14 +95,16 @@ class QuantSimpleConv(nn.Module):
             bias=False,
             weight_quant=weight_quant,
             weight_bit_width=weight_bit_width)
-        self.hard_quant = QuantHardTanh(
-            max_val=1.0, min_val=-1.0,
-            act_quant=CommonActQuant,
-            bit_width=8)
+        if self.use_hardtanh:
+            self.hard_quant = QuantHardTanh(
+                max_val=1.0, min_val=-1.0,
+                act_quant=CommonActQuant,
+                bit_width=8)
 
     def forward(self, x):
         x = self.conv(x)
-        x = self.hard_quant(x/2)
+        if self.use_hardtanh:
+            x = self.hard_quant(x/2)
         return x
 
 

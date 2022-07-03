@@ -268,6 +268,9 @@ class Model(nn.Module):
 def parse_model(d, ch):  # model_dict, input_channels(3)
     LOGGER.info('\n%3s%18s%3s%10s  %-40s%-30s' % ('', 'from', 'n', 'params', 'module', 'arguments'))
     anchors, nc, gd, gw = d['anchors'], d['nc'], d['depth_multiple'], d['width_multiple']
+    if 'use_hardtanh' in d.keys():
+        use_hardtanh = d['use_hardtanh']
+        
     if 'bit_width' in d.keys():
         # in_weight_bit_width, in_act_bit_width, weight_bit_width, act_bit_width, out_weight_bit_width = d['bit_width'][0]
         in_weight_bit_width, weight_bit_width, act_bit_width, out_weight_bit_width = d['bit_width'][0]
@@ -291,7 +294,6 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
                 c2 = make_divisible(c2 * gw, 8)
 
             args = [c1, c2, *args[1:]]
-            print(args)
             if m in [BottleneckCSP, C3, C3TR, C3Ghost]:
                 args.insert(2, n)  # number of repeats
                 n = 1
