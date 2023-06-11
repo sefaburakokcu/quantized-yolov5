@@ -18,6 +18,7 @@ if str(ROOT) not in sys.path:
 # ROOT = ROOT.relative_to(Path.cwd())  # relative
 
 from models.common import *
+from models.quant_common import CommonIntWeightPerChannelQuant
 from models.experimental import *
 from utils.autoanchor import check_anchor_order
 from utils.general import check_yaml, make_divisible, print_args, set_logging
@@ -37,7 +38,7 @@ class Detect(nn.Module):
     stride = None  # strides computed during build
     onnx_dynamic = False  # ONNX export parameter
 
-    def __init__(self, nc=80, anchors=(), ch=(), in_conv=True, use_hardtanh=False, inplace=True):  # detection layer
+    def __init__(self, nc=80, anchors=(), ch=(), in_conv=True, use_hardtanh=False, inplace=True, weight_bit_width=None):  # detection layer
         super().__init__()
         self.nc = nc  # number of classes
         self.no = nc + 5  # number of outputs per anchor
@@ -48,7 +49,17 @@ class Detect(nn.Module):
         self.register_buffer('anchors', torch.tensor(anchors).float().view(self.nl, -1, 2))  # shape(nl,na,2)
         self.in_conv = in_conv
         self.use_hardtanh = use_hardtanh
-        self.m = nn.ModuleList(nn.Conv2d(x, self.no * self.na, 1) for x in ch)  # output conv
+        if weight_bit_width is not None:
+            self.m = nn.ModuleList(QuantConv2d(
+                in_channels=x,
+                out_channels=self.no * self.na,
+                kernel_size=1,
+                stride=1,
+                bias=False,
+                weight_quant=CommonIntWeightPerChannelQuant,
+                weight_bit_width=weight_bit_width) for x in ch)
+        else:
+            self.m = nn.ModuleList(nn.Conv2d(x, self.no * self.na, 1) for x in ch)  # output conv
         self.inplace = inplace  # use in-place ops (e.g. slice assignment)
             
     def forward(self, x):
@@ -64,7 +75,7 @@ class Detect(nn.Module):
                     self.grid[i], self.anchor_grid[i] = self._make_grid(nx, ny, i)
                 y = x[i]
                 if self.use_hardtanh:
-                    y[..., 4:] = y[..., 4:] / 2 + 0.5
+                    y[..., 4:] = y[..., 4:] #/ 2 + 0.5
                 else:
                     y = y.sigmoid()
                 if self.inplace:
@@ -217,10 +228,11 @@ class Model(nn.Module):
         # cf = torch.bincount(torch.tensor(np.concatenate(dataset.labels, 0)[:, 0]).long(), minlength=nc) + 1.
         m = self.model[-1]  # Detect() module
         for mi, s in zip(m.m, m.stride):  # from
-            b = mi.bias.view(m.na, -1)  # conv.bias(255) to (3,85)
-            b.data[:, 4] += math.log(8 / (640 / s) ** 2)  # obj (8 objects per 640 image)
-            b.data[:, 5:] += math.log(0.6 / (m.nc - 0.99)) if cf is None else torch.log(cf / cf.sum())  # cls
-            mi.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
+            if mi.bias is not None:
+                b = mi.bias.view(m.na, -1)  # conv.bias(255) to (3,85)
+                b.data[:, 4] += math.log(8 / (640 / s) ** 2)  # obj (8 objects per 640 image)
+                b.data[:, 5:] += math.log(0.6 / (m.nc - 0.99)) if cf is None else torch.log(cf / cf.sum())  # cls
+                mi.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
 
     def _print_biases(self):
         m = self.model[-1]  # Detect() module
@@ -288,13 +300,14 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
 
         n = n_ = max(round(n * gd), 1) if n > 1 else n  # depth gain
         if m in [Conv, GhostConv, Bottleneck, GhostBottleneck, SPP, SPPF, DWConv, MixConv2d, Focus, CrossConv,
-                 BottleneckCSP, C3, C3TR, C3SPP, C3Ghost, SimpleConv, QuantConv, QuantSimpleConv]:
+                 BottleneckCSP, C3, C3TR, C3SPP, C3Ghost, SimpleConv, QuantConv, QuantSimpleConv, QuantC3, QuantBottleneck,
+                 QuantSPPF]:
             c1, c2 = ch[f], args[0]
             if c2 != no:  # if not output
                 c2 = make_divisible(c2 * gw, 8)
 
             args = [c1, c2, *args[1:]]
-            if m in [BottleneckCSP, C3, C3TR, C3Ghost]:
+            if m in [BottleneckCSP, C3, C3TR, C3Ghost, QuantC3]:
                 args.insert(2, n)  # number of repeats
                 n = 1
         elif m is nn.BatchNorm2d:
@@ -302,7 +315,7 @@ def parse_model(d, ch):  # model_dict, input_channels(3)
         elif m is Concat:
             c2 = sum([ch[x] for x in f])
         elif m is Detect:
-            if len(args) == 4:
+            if len(args) == 4 or len(args) == 6:
                 args.insert(2, [ch[x] for x in f])
             else:
                 args.append([ch[x] for x in f])

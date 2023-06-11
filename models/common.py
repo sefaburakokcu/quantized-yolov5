@@ -24,7 +24,7 @@ from utils.plots import Annotator, colors
 from utils.torch_utils import time_sync
 
 # Quant layer imports
-from brevitas.nn import QuantConv2d, QuantLinear, QuantReLU, QuantAvgPool2d, QuantSigmoid, QuantHardTanh
+from brevitas.nn import QuantConv2d, QuantLinear, QuantReLU, QuantAvgPool2d, QuantSigmoid, QuantHardTanh, QuantIdentity
 from brevitas.quant import IntBias, Int8ActPerTensorFloatMinMaxInit
 
 from .quant_common import CommonIntActQuant, CommonUintActQuant, CommonWeightQuant, CommonActQuant
@@ -212,6 +212,20 @@ class Bottleneck(nn.Module):
         return x + self.cv2(self.cv1(x)) if self.add else self.cv2(self.cv1(x))
 
 
+class QuantBottleneck(nn.Module):
+    # Standard quantized bottleneck
+    def __init__(self, c1, c2, shortcut=True, g=1, e=0.5,
+                 weight_bit_width=4, act_bit_width=2):  # ch_in, ch_out, shortcut, groups, expansion, weight bit, act bit
+        super().__init__()
+        c_ = int(c2 * e)  # hidden channels
+        self.cv1 = QuantConv(c1, c_, 1, 1, weight_bit_width=weight_bit_width, act_bit_width=act_bit_width)
+        self.cv2 = QuantConv(c_, c2, 3, 1, g=g, weight_bit_width=weight_bit_width, act_bit_width=act_bit_width)
+        self.add = shortcut and c1 == c2
+        self.quant_identity = QuantIdentity(bit_width=weight_bit_width)
+
+    def forward(self, x):
+        return self.quant_identity(x) + self.cv2(self.cv1(x)) if self.add else self.cv2(self.cv1(x))
+
 class BottleneckCSP(nn.Module):
     # CSP Bottleneck https://github.com/WongKinYiu/CrossStagePartialNetworks
     def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5):  # ch_in, ch_out, number, shortcut, groups, expansion
@@ -244,6 +258,33 @@ class C3(nn.Module):
 
     def forward(self, x):
         return self.cv3(torch.cat((self.m(self.cv1(x)), self.cv2(x)), dim=1))
+
+
+class QuantC3(nn.Module):
+    # Quantized CSP Bottleneck with 3 convolutions
+    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5,
+                 weight_bit_width=4, act_bit_width=2, use_hardtanh=False):  # ch_in, ch_out, number, shortcut, groups, expansion, weight bit, act bit
+        super().__init__()
+        self.use_hardtanh = use_hardtanh
+        c_ = int(c2 * e)  # hidden channels
+        self.cv1 = QuantConv(c1, c_, 1, 1, weight_bit_width=weight_bit_width, act_bit_width=act_bit_width)
+        self.cv2 = QuantConv(c1, c_, 1, 1, weight_bit_width=weight_bit_width, act_bit_width=act_bit_width)
+        self.cv3 = QuantConv(2 * c_, c2, 1, weight_bit_width=weight_bit_width, act_bit_width=act_bit_width)  # act=FReLU(c2)
+        self.m = nn.Sequential(*[QuantBottleneck(c_, c_, shortcut, g, e=1.0,
+                                                 weight_bit_width=weight_bit_width, act_bit_width=act_bit_width)
+                                 for _ in range(n)])
+        # self.m = nn.Sequential(*[CrossConv(c_, c_, 3, 1, g, 1.0, shortcut) for _ in range(n)])
+        if self.use_hardtanh:
+            self.hard_quant = QuantHardTanh(
+                max_val=1.0, min_val=-1.0,
+                act_quant=CommonActQuant,
+                bit_width=8)
+
+    def forward(self, x):
+        out = self.cv3(torch.cat((self.m(self.cv1(x)), self.cv2(x)), dim=1))
+        if self.use_hardtanh:
+            out = self.hard_quant(out / 2)
+        return out
 
 
 class C3TR(C3):
@@ -293,6 +334,24 @@ class SPPF(nn.Module):
         c_ = c1 // 2  # hidden channels
         self.cv1 = Conv(c1, c_, 1, 1)
         self.cv2 = Conv(c_ * 4, c2, 1, 1)
+        self.m = nn.MaxPool2d(kernel_size=k, stride=1, padding=k // 2)
+
+    def forward(self, x):
+        x = self.cv1(x)
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')  # suppress torch 1.9.0 max_pool2d() warning
+            y1 = self.m(x)
+            y2 = self.m(y1)
+            return self.cv2(torch.cat([x, y1, y2, self.m(y2)], 1))
+
+
+class QuantSPPF(nn.Module):
+    # Quantized Spatial Pyramid Pooling - Fast (QuantSPPF) layer for YOLOv5 by Glenn Jocher
+    def __init__(self, c1, c2, k=5, weight_bit_width=4, act_bit_width=2):  # equivalent to SPP(k=(5, 9, 13))
+        super().__init__()
+        c_ = c1 // 2  # hidden channels
+        self.cv1 = QuantConv(c1, c_, 1, 1, weight_bit_width=weight_bit_width, act_bit_width=act_bit_width)
+        self.cv2 = QuantConv(c_ * 4, c2, 1, 1, weight_bit_width=weight_bit_width, act_bit_width=act_bit_width)
         self.m = nn.MaxPool2d(kernel_size=k, stride=1, padding=k // 2)
 
     def forward(self, x):
