@@ -24,7 +24,11 @@ from utils.plots import Annotator, colors
 from utils.torch_utils import time_sync
 
 # Quant layer imports
-from brevitas.nn import QuantConv2d, QuantLinear, QuantReLU, QuantAvgPool2d, QuantSigmoid, QuantHardTanh, QuantIdentity
+from brevitas.nn import QuantConv2d, QuantLinear, QuantReLU, QuantSigmoid, QuantHardTanh, QuantIdentity
+try:
+    from brevitas.nn import QuantAvgPool2d
+except Exception as e:
+    from brevitas.nn import TruncAvgPool2d as QuantAvgPool2d
 from brevitas.quant import IntBias, Int8ActPerTensorFloatMinMaxInit
 
 from .quant_common import CommonIntActQuant, CommonUintActQuant, CommonWeightQuant, CommonActQuant
