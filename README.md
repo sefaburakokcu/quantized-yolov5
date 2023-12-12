@@ -44,6 +44,19 @@ Sigmoid activation is used in detect layer when training whereas HardTanh is use
 $ python export.py --data widerface.yaml --weights runs/train/exp1/weights/best.pt --nodetect
 ```
 
+## Citation
+
+@inproceedings{Gunay_2022, series={EECSS’22},
+   title={LPYOLO: Low Precision YOLO for Face Detection on FPGA},
+   ISSN={2369-811X},
+   url={http://dx.doi.org/10.11159/mvml22.108},
+   DOI={10.11159/mvml22.108},
+   booktitle={Proceedings of the 8th World Congress on Electrical Engineering and Computer Systems and Science},
+   publisher={Avestia Publishing},
+   author={Gunay, Bestami and Okcu, Sefa Burak and Bilge, Hasan Sakir},
+   year={2022},
+   month=jul, collection={EECSS’22} }
+   
 ## References
 
 * [YOLOV5](https://github.com/ultralytics/yolov5)
