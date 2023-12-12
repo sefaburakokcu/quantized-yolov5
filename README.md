@@ -46,6 +46,9 @@ $ python export.py --data widerface.yaml --weights runs/train/exp1/weights/best.
 
 ## Citation
 
+If you utilize this repo in your research, please cite it as:
+
+```
 @inproceedings{Gunay_2022, series={EECSS’22},
    title={LPYOLO: Low Precision YOLO for Face Detection on FPGA},
    ISSN={2369-811X},
@@ -56,6 +59,7 @@ $ python export.py --data widerface.yaml --weights runs/train/exp1/weights/best.
    author={Gunay, Bestami and Okcu, Sefa Burak and Bilge, Hasan Sakir},
    year={2022},
    month=jul, collection={EECSS’22} }
+```
    
 ## References
 
