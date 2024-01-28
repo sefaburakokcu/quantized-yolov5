@@ -97,7 +97,7 @@ def attempt_load(weights, map_location=None, inplace=True, fuse=True):
             ema = ckpt['ema' if ckpt.get('ema') else 'model'].float()
         except:
             ckpt = torch.load(attempt_download(w), map_location='cpu')  # load
-            cfg = w.replace("weights/best.pt", "model.yaml")
+            cfg = str(w).replace("weights/best.pt", "model.yaml")
             if not os.path.exists(cfg):
                 cfg = 'models/hub/yolov1-tiny-quant.yaml'
             
